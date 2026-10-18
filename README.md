@@ -24,50 +24,57 @@ The script implements an SMBv2 server that can negotiate sessions, handle authen
 
 ## Usage
 
-```bash
-python3 41222.py
+### Windows (PowerShell)
+```powershell
+python 41222.py --host 192.168.1.100 --port 445
 ```
 
-The script starts an SMBv2 server listening on port 445. It handles the following SMBv2 protocol phases:
+### Linux / WSL / macOS
+```bash
+python3 41222.py --host 192.168.1.100 --port 445
+```
 
-1. **Negotiate** - Protocol negotiation (SMBv2)
-2. **Session Setup** - Authentication and session establishment
-3. **Tree Connect** - File/share access (triggers the vulnerability)
+## Running Against Metasploitable 2
 
-## How It Works
+### Windows (PowerShell)
+```powershell
+python 41222_metasploitable2.py --host 192.168.200.132
+```
 
-### SMBv2 Protocol Flow
+### Linux / WSL / macOS
+```bash
+python3 41222_metasploitable2.py --host 192.168.200.132
+```
 
-The script simulates an SMBv2 server that:
+## File Structure
 
-1. **Negotiates Protocol** - Responds to client's SMB negotiate request with SMBv2 dialect
-2. **Handles Session Setup** - Processes session setup requests and returns a security challenge
-3. **Tree Connect** - Handles Tree Connect requests and triggers a buffer overflow condition
+- `41222.py` - Original Python 2 SMBv2 exploit (converted to Python 3)
+- `41222_metasploitable2.py` - SMB PoC for Metasploitable 2 (cross-platform)
+- `samba_poc.py` - Simple SMB protocol test server
+- `README.md` - This file
 
-### Key Components
+## Cross-Platform Compatibility
 
-- `Packet` - Base packet class using OrderedDict for SMB2 header fields
-- `SMBv2Header` - SMBv2 header structure
-- `SMB2NegoAns` - SMBv2 Negotiate Response handler
-- `SMB2Session1Data` - SMBv2 Session Setup (security challenge) handler
-- `SMB2SessionAcceptData` - SMBv2 Session Accept (authentication success) handler
-- `SMB2TreeData` - SMBv2 Tree Connect handler (contains the vulnerability trigger)
-- `SMB2` - Main SMBv2 server handler (BaseRequestHandler)
+This project works on:
+- **Windows 10/11** (PowerShell / CMD)
+- **Linux** (Ubuntu, Debian, Fedora, etc.)
+- **macOS** (Big Sur and later)
+- **WSL 2** (Windows Subsystem for Linux)
 
-### Vulnerability
+The scripts use only Python 3 standard library modules (`socket`, `struct`, `collections`, `datetime`, `calendar`).
 
-The Tree Connect handler contains a bug (marked `#/BUG` in the original) that can be triggered by sending a specially crafted SMBv2 packet with an oversized Data field.
+## Prerequisites
 
-## Important Notes
+- Python 3.12 or later
+- No third-party packages required (uses only standard library)
+- Admin/root privileges to bind to port 445
+
+## Notes
 
 - **For educational/research purposes only.** This script is a proof-of-concept exploit from the Exploit Database.
 - **Do not run against systems you do not own or have explicit permission to test.**
-- The script requires **administrator/root privileges** to bind to port 445 (the SMB default port).
 - Only SMBv2 is implemented; SMBv3 and other protocol versions are not supported.
-
-## File Contents
-
-- `41222.py` - Python 3-compatible SMBv2 exploit script
+- The Metasploitable 2 VM should have ports 139 and 445 open for SMB traffic.
 
 ## Source
 

@@ -12,14 +12,22 @@ vulnerability for educational and authorized penetration testing.
 Target: 192.168.1.100 (default Metasploitable2 IP)
 
 Usage:
-    python3 41222_metasploitable2.py
+    Windows (PowerShell):
+        python 41222_metasploitable2.py --host 192.168.1.100
+    Linux / WSL:
+        python3 41222_metasploitable2.py --host 192.168.1.100
 
 Prerequisites:
     - Target Metasploitable2 must be running on 192.168.1.100
-    - Python 3.x with standard library
+    - Python 3.x with standard library (no external dependencies)
     - Network access to target
 
 Note: This is a proof-of-concept for educational purposes only.
+
+Cross-Platform:
+    - Windows PowerShell: `python 41222_metasploitable2.py --host <ip>`
+    - Linux / WSL: `python3 41222_metasploitable2.py --host <ip>`
+    - macOS: `python3 41222_metasploitable2.py --host <ip>`
 """
 
 import socket
