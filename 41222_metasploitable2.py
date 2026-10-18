@@ -670,8 +670,7 @@ def main():
     
     # Setup logging - use global slog
     if args.quiet:
-        # Disable all output - redefines slog to be a no-op
-        global slog
+        # Disable all output by using a no-op function
         def slog(*args, **kwargs):
             pass
     import sys
