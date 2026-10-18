@@ -668,11 +668,7 @@ def main():
     
     args = parser.parse_args()
     
-    # Setup logging - use global slog
-    if args.quiet:
-        # Disable all output by using a no-op function
-        def slog(*args, **kwargs):
-            pass
+    # Setup logging - quiet mode uses no-op slog below
     import sys
     output = sys.stdout
     error_output = sys.stderr
