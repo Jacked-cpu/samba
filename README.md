@@ -158,6 +158,22 @@ python cve-2009-3103/cve_2009_3103_smbv2_server.py
 
 Ported to Python 3 (`collections.OrderedDict`, bytes-safe packet building).
 
+## cve-2017-0143/ — MS17-010 / EternalBlue (Windows SMBv1)
+
+Windows SMBv1 remote code execution (EternalBlue) affecting Windows Vista/7/8/8.1/2008/2012/2016/10 and older. **Not a Samba vulnerability** — it targets Microsoft SMBv1 in Windows. Use only in authorized labs.
+
+Contents: `EternalBlue_Exploit8.py` (exploit), `checker.py` (vulnerability check), `mysmb.py` (SMB helpers). Based on worawit's MS17-010 PoCs.
+
+```bash
+# Check if target is vulnerable
+python cve-2017-0143/checker.py <target_ip>
+
+# Run exploit (requires shellcode setup per the repo notes; see README_MS17-010.md)
+python cve-2017-0143/EternalBlue_Exploit8.py <target_ip> <shellcode_file>
+```
+
+See `cve-2017-0143/README_MS17-010.md` for original usage and shellcode instructions. No extra deps beyond Python 2/3 stdlib depending on variant.
+
 ## cve-2020-0796/ — SMBGhost / BleedingGhost (Windows RCE)
 
 Remote code execution PoC for **CVE-2020-0796** / "SMBGhost", extended as
