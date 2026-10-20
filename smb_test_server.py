@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Samba PoC - Simple SMB Protocol Server Implementation
-=====================================================
-Proof-of-concept SMB server implementation for testing Samba clients and
-understanding the SMB protocol flow.
+SMB Test Server - Simple SMB Protocol Server Implementation
+===========================================================
+Minimal SMB server implementation for testing SMB clients and
+understanding the SMB protocol flow. Not an exploit.
 
 This is a minimal implementation for educational/security testing purposes.
 It demonstrates the basic SMB protocol handshake and request handling.
