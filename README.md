@@ -13,6 +13,8 @@ cve-2007-2447/
   reverse_shell.cmd      Windows wrapper — runs the .sh from cmd/PowerShell
 cve-2009-3103/
   cve_2009_3103_smbv2_server.py   Malicious SMBv2 server (crashes Windows clients)
+cve-2010-2075/
+  unrealircd_backdoor.py UnrealIRCd 3.2.8.1 backdoor RCE (works, verified)
 cve-2017-0143/
   EternalBlue_Exploit8.py MS17-010/EternalBlue (Windows SMBv1)
   checker.py
@@ -23,6 +25,10 @@ cve-2020-0796/
   calc_target_offsets.bat
   smbghost_kshellcode_x64.asm
   tools/                 Debugging helpers (cdb/dbghelp/link etc.)
+cve-2021-4034/
+  pwnkit_exploit.py      PwnKit local root escalation runner (works, verified)
+  cve-2021-4034.c        pkexec argv[0] trigger
+  pwnkit.c               gconv module payload (/bin/sh /tmp/.payload)
 smb_test_server.py       Benign SMB1 protocol test server (not an exploit)
 README.md                This file — shared by all folders
 ```
@@ -195,6 +201,31 @@ python cve-2009-3103/cve_2009_3103_smbv2_server.py
 
 Ported to Python 3 (`collections.OrderedDict`, bytes-safe packet building).
 
+## cve-2010-2075/ — UnrealIRCd 3.2.8.1 backdoor (verified)
+
+The UnrealIRCd 3.2.8.1 release tarball shipped trojaned: any IRC line that
+begins with `AB;` is handed to `system()` in the ircd process, giving
+unauthenticated remote code execution as the daemon's user. Verified against
+Metasploitable 3 (Ubuntu 14.04), which runs the backdoored daemon on 6697
+as `boba_fett`.
+
+`unrealircd_backdoor.py` speaks just enough IRC to reach the backdoor. The
+backdoor produces no output on the socket, so `--exec` runs the command and
+writes stdout/stderr into a web-accessible directory on the target, then
+fetches it over HTTP.
+
+```bash
+python3 cve-2010-2075/unrealircd_backdoor.py --host 192.168.200.152 --exec "id; hostname; uname -r"
+python3 cve-2010-2075/unrealircd_backdoor.py --host 192.168.200.152 --cmd "touch /tmp/pwned"
+python3 cve-2010-2075/unrealircd_backdoor.py --host 192.168.200.152 --upload local.txt:/var/www/html/local.txt
+```
+
+The daemon enforces IRC flood protection and drops unregistered clients after
+a handful of lines, so the client stays on one connection, paces lines
+(`--delay`, default 0.8 s), and waits for each line to be accepted. Large
+uploads over this channel are unreliable — prefer an SMB share or the
+`--exec` output path for file staging.
+
 ## cve-2017-0143/ — MS17-010 / EternalBlue (Windows SMBv1)
 
 Windows SMBv1 remote code execution (EternalBlue) affecting Windows Vista/7/8/8.1/2008/2012/2016/10 and older. **Not a Samba vulnerability** — it targets Microsoft SMBv1 in Windows. Use only in authorized labs.
@@ -240,6 +271,28 @@ See `cve-2020-0796/README.md` for the full original documentation and
 technical writeup links. Requires no extra Python packages beyond the
 standard library on Windows (uses `ctypes` to call `ntdll`).
 
+## cve-2021-4034/ — PwnKit local root (verified)
+
+Local privilege escalation in polkit's `pkexec` (PwnKit). `pkexec` mishandles
+`argc == 0`, letting an attacker place `GCONV_PATH` in the environment and
+load a fake gconv module in the root context. Verified on Metasploitable 3
+(polkit 0.105, gcc 4.8.4, SUID `/usr/bin/pkexec`).
+
+Requirements on the target: `gcc`, `/bin/true`, and an SUID-root `pkexec`.
+
+```bash
+# Run `id` as root, write the proof to /tmp/pwnkit.out
+python3 cve-2021-4034/pwnkit_exploit.py --cmd "id; hostname" --out /tmp/pwnkit.out
+
+# Any command, keep the build directory for inspection
+python3 cve-2021-4034/pwnkit_exploit.py --cmd "cat /etc/shadow" --out /tmp/shadow.txt --keep
+```
+
+`cve-2021-4034.c` triggers the bug; `pwnkit.c` is the fake gconv module that
+runs `/bin/sh /tmp/.payload`. One subtlety: the fake executable must be named
+`pwnkit.so:.` (trailing dot) inside `GCONV_PATH=.`; the runner creates that
+name from `/bin/true` automatically.
+
 ## smb_test_server.py — benign protocol test server
 
 A small standalone SMB1 test/echo server for protocol experiments. Not an
@@ -248,10 +301,33 @@ exploit.
 ## Lab setup used for verification
 
 - Target: Metasploitable 2 at `192.168.200.132` (VMware, host-only/NAT)
+- Target: Metasploitable 3 (Ubuntu 14.04) at `192.168.200.152`
 - Host: any machine on the same network with Python 3
 - Callback for reverse shells: the Windows adapter on the target's subnet
   (`192.168.200.1`), **not** WSL's NAT address
-- Open ports on target: 22, 80, 139, 445, 3632
+- Open ports on MS2: 22, 80, 139, 445, 3632
+
+### Metasploitable 3 (Ubuntu 14.04) — verified chain
+
+`192.168.200.152` (hostname `metasploitable3-ub1404`, kernel
+`3.13.0-170-generic`) exposes 21 ProFTPD 1.3.5, 22 OpenSSH 6.6.1p1,
+80 Apache 2.4.7, 445 Samba 4.3.11, 631 CUPS 1.7, 3306 MySQL, 3500 WEBrick,
+6697 UnrealIRCd 3.2.8.1, 8080 Jetty 8.1.7.
+
+1. **CVE-2010-2075** — UnrealIRCd backdoor on 6697 → RCE as `boba_fett`
+   (member of `users` and `docker`).
+2. **CVE-2021-4034** — PwnKit via SUID `pkexec` 0.105 → root.
+3. **Samba 4.3.11 is patched for CVE-2017-7494 (SambaCry)** on this image:
+   the package is `2:4.3.11+dfsg-0ubuntu0.14.04.20`, and
+   `exploit/linux/samba/is_known_pipename` uploads its `.so` to the writable
+   `public` share but fails to load it (`STATUS_OBJECT_NAME_NOT_FOUND`).
+   EternalBlue/SMBGhost also do not apply — they target Windows.
+
+The `public` share maps to `/var/www/html/` (`writable = yes`). A Samba
+account (`chewbacca`) was created during testing to stage files reliably;
+note that `smbpasswd`/`pdbedit` refuse to run under an SUID bash
+(`libsmb based programs must *NOT* be setuid root`) and need a real-root
+context.
 
 ## License
 
