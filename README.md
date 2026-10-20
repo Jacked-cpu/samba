@@ -12,6 +12,11 @@ cve-2007-2447/
                          picks the callback address, listens, fires the exploit)
 cve-2009-3103/
   cve_2009_3103_smbv2_server.py   Malicious SMBv2 server (crashes Windows clients)
+cve-2017-0143/
+  EternalBlue_Exploit8.py MS17-010/EternalBlue (Windows SMBv1)
+  checker.py
+  mysmb.py
+  README_MS17-010.md
 cve-2020-0796/
   BleedingGhost.py       SMBGhost/SMBleedingGhost RCE (Windows 10 1903/1909)
   calc_target_offsets.bat
