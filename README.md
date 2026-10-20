@@ -93,10 +93,11 @@ cve-2007-2447\reverse_shell.cmd 192.168.200.132
 ```
 
 Arguments are `<target_ip> [lport] [lhost]` — the port defaults to 4444 and the
-callback address is auto-detected. It opens the firewall for the callback port,
-picks a callback address on the target's subnet, starts the listener, then
-fires the exploit. You land in a root shell — try `id; hostname; uname -a`,
-type `exit` to drop it.
+callback address is auto-detected. If that port is already taken, the helper
+says so and moves up until it finds a free one, so you never have to hunt for a
+port yourself. It opens the firewall for the chosen port, picks a callback
+address on the target's subnet, starts the listener, then fires the exploit.
+You land in a root shell — try `id; hostname; uname -a`, type `exit` to drop it.
 
 ### Manual equivalent
 
